@@ -1,13 +1,10 @@
-const unifiedUrl = import.meta.env.VITE_JINODO_URL;
+const defaultUrl = import.meta.env.DEV
+  ? 'http://localhost:8080'
+  : 'https://api.tongmilz.com';
 
-export const AUTH_BASE_URL =
-  unifiedUrl ?? import.meta.env.VITE_AUTH_URL ?? 'http://localhost:8080';
+const unifiedUrl = (import.meta.env.VITE_JINODO_URL || defaultUrl).replace(/\/+$/, '');
 
-export const INGESTION_BASE_URL =
-  unifiedUrl ?? import.meta.env.VITE_INGESTION_URL ?? 'http://localhost:8080';
-
-export const PROCESSING_BASE_URL =
-  unifiedUrl ?? import.meta.env.VITE_PROCESSING_URL ?? 'http://localhost:8080';
-
-export const CHAT_BASE_URL =
-  unifiedUrl ?? import.meta.env.VITE_CHAT_URL ?? 'http://localhost:8080';
+export const AUTH_BASE_URL = unifiedUrl;
+export const INGESTION_BASE_URL = unifiedUrl;
+export const PROCESSING_BASE_URL = unifiedUrl;
+export const CHAT_BASE_URL = unifiedUrl;
