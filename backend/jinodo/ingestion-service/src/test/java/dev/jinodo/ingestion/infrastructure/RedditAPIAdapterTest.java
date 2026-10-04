@@ -1,0 +1,150 @@
+package dev.jinodo.ingestion.infrastructure;
+
+import dev.jinodo.domain.model.Channel;
+import dev.jinodo.domain.model.NewsItem;
+import dev.jinodo.domain.model.NewsSource;
+import dev.jinodo.ingestion.infrastructure.adapter.reddit.RedditApiAdapter;
+import dev.jinodo.ingestion.infrastructure.adapter.reddit.RedditTokenProvider;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+class RedditApiAdapterTest {
+
+    private MockWebServer mockWebServer;
+    private RedditApiAdapter sut;
+
+    private static final Channel JAVA_CHANNEL = new Channel(
+            UUID.randomUUID(), "java", "Java", "Java ecosystem"
+    );
+
+    @BeforeEach
+    void setUp() throws IOException {
+        mockWebServer = new MockWebServer();
+        mockWebServer.start();
+
+        RedditTokenProvider tokenProvider = mock(RedditTokenProvider.class);
+        when(tokenProvider.getAccessToken()).thenReturn("stub-token");
+
+        WebClient.Builder builder = WebClient.builder();
+
+        sut = new RedditApiAdapter(
+                builder,
+                mockWebServer.url("/").toString(),  // baseUrl aus MockWebServer
+                tokenProvider
+        );
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        mockWebServer.shutdown();
+    }
+
+    @Test
+    @DisplayName("should return mapped NewsItems when Reddit returns valid response")
+    void should_returnNewsItems_when_redditReturnsValidResponse() {
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("""
+                    {
+                      "data": {
+                        "children": [
+                          {
+                            "data": {
+                              "id": "abc123",
+                              "title": "Spring Boot 3.3 Released",
+                              "author": "devuser",
+                              "permalink": "/r/java/comments/abc123",
+                              "score": 1500,
+                              "created_utc": 1700000000.0
+                            }
+                          }
+                        ]
+                      }
+                    }
+                """));
+
+        List<NewsItem> result = sut.fetchLatest(JAVA_CHANNEL);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).externalId()).isEqualTo("abc123");
+        assertThat(result.get(0).title()).isEqualTo("Spring Boot 3.3 Released");
+        assertThat(result.get(0).author()).isEqualTo("devuser");
+        assertThat(result.get(0).score()).isEqualTo(1500);
+        assertThat(result.get(0).url()).isEqualTo("https://reddit.com/r/java/comments/abc123");
+    }
+
+    @Test
+    @DisplayName("should return empty list when Reddit returns 403")
+    void should_returnEmptyList_when_redditReturns403() {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(403));
+
+        List<NewsItem> result = sut.fetchLatest(JAVA_CHANNEL);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should return empty list when Reddit returns no children")
+    void should_returnEmptyList_when_redditReturnsNoChildren() {
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("""
+                    {"data": {"children": []}}
+                """));
+
+        List<NewsItem> result = sut.fetchLatest(JAVA_CHANNEL);
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should request the channel name as subreddit when no query override is set")
+    void should_requestChannelName_when_noQueryOverrideIsSet() throws InterruptedException {
+        mockWebServer.enqueue(emptyRedditResponse());
+
+        sut.fetchLatest(JAVA_CHANNEL);
+
+        assertThat(mockWebServer.takeRequest().getPath()).startsWith("/r/java/hot");
+    }
+
+    @Test
+    @DisplayName("should request the multireddit unencoded when a Reddit query override is set")
+    void should_requestMultireddit_when_queryOverrideIsSet() throws InterruptedException {
+        Channel aiChannel = new Channel(
+                UUID.randomUUID(), "ai", "AI", "LLM providers",
+                Map.of(NewsSource.REDDIT, "LocalLLaMA+OpenAI+ClaudeAI")
+        );
+        mockWebServer.enqueue(emptyRedditResponse());
+
+        sut.fetchLatest(aiChannel);
+
+        // Das '+' muss als Multireddit-Trenner durchkommen, nicht als %2B ankommen.
+        assertThat(mockWebServer.takeRequest().getPath())
+                .startsWith("/r/LocalLLaMA+OpenAI+ClaudeAI/hot");
+    }
+
+    private static MockResponse emptyRedditResponse() {
+        return new MockResponse()
+                .setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody("""
+                    {"data": {"children": []}}
+                """);
+    }
+}

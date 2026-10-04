@@ -1,11 +1,11 @@
 # ============================================================
-# PulseStack + StockPredictor — Unified Compose
+# Jinodo + StockPredictor — Unified Compose
 #
-# StockPredictor läuft als 5. Microservice im PulseStack-Ökosystem:
+# StockPredictor läuft als 5. Microservice im Jinodo-Ökosystem:
 #   - Gemeinsame Infrastruktur (Postgres, Redis, Kafka)
-#   - Auth ausschließlich über PulseStack auth-service (:8084)
+#   - Auth ausschließlich über Jinodo auth-service (:8084)
 #   - JWT-Token funktioniert in beiden Apps (shared secret)
-#   - StockPredictor-Events fließen in PulseStack #finance-Channel
+#   - StockPredictor-Events fließen in Jinodo #finance-Channel
 #
 # Starten:
 #   cp .env.example .env   # Werte eintragen
@@ -14,10 +14,10 @@
 # Services & Ports:
 #   :5173  Frontend (Vite dev) — extern gestartet
 #   :8080  StockPredictor (standalone, falls separat gestartet)
-#   :8081  PulseStack ingestion-service
-#   :8082  PulseStack chat-service
-#   :8083  PulseStack processing-service
-#   :8084  PulseStack auth-service          ← Login/Register für alle Apps
+#   :8081  Jinodo ingestion-service
+#   :8082  Jinodo chat-service
+#   :8083  Jinodo processing-service
+#   :8084  Jinodo auth-service          ← Login/Register für alle Apps
 #   :8085  StockPredictor (als Microservice)
 #   :8090  Kafka UI
 # ============================================================
@@ -28,11 +28,11 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: pulsestack-postgres
+    container_name: jinodo-postgres
     environment:
-      POSTGRES_USER: pulsestack
+      POSTGRES_USER: jinodo
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: pulsestack
+      POSTGRES_DB: jinodo
     ports:
       - "5432:5432"
     volumes:
@@ -40,14 +40,14 @@ services:
       - ./docker/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pulsestack"]
+      test: ["CMD-SHELL", "pg_isready -U jinodo"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: pulsestack-redis
+    container_name: jinodo-redis
     ports:
       - "6379:6379"
     healthcheck:
@@ -58,7 +58,7 @@ services:
 
   kafka:
     image: apache/kafka:3.7.0
-    container_name: pulsestack-kafka
+    container_name: jinodo-kafka
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -69,7 +69,7 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      CLUSTER_ID: pulsestack-cluster-01
+      CLUSTER_ID: jinodo-cluster-01
     ports:
       - "9092:9092"
     healthcheck:
@@ -80,29 +80,29 @@ services:
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
-    container_name: pulsestack-kafka-ui
+    container_name: jinodo-kafka-ui
     ports:
       - "8090:8080"
     environment:
-      KAFKA_CLUSTERS_0_NAME: pulsestack
+      KAFKA_CLUSTERS_0_NAME: jinodo
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     depends_on:
       - kafka
 
-  # ─── PulseStack Services ─────────────────────────────────────
+  # ─── Jinodo Services ─────────────────────────────────────
 
   auth-service:
     build:
-      context: ./backend/pulsestack
+      context: ./backend/jinodo
       dockerfile: auth-service/Dockerfile
-    container_name: pulsestack-auth
+    container_name: jinodo-auth
     ports:
       - "8084:8084"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: pulsestack
-      DB_USER: pulsestack
+      DB_NAME: jinodo
+      DB_USER: jinodo
       DB_PASSWORD: ${DB_PASSWORD:-password}
       JWT_SECRET: ${JWT_SECRET}
       SPRING_PROFILES_ACTIVE: prod
@@ -117,21 +117,21 @@ services:
 
   ingestion-service:
     build:
-      context: ./backend/pulsestack
+      context: ./backend/jinodo
       dockerfile: ingestion-service/Dockerfile
-    container_name: pulsestack-ingestion
+    container_name: jinodo-ingestion
     ports:
       - "8081:8081"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: pulsestack
-      DB_USER: pulsestack
+      DB_NAME: jinodo
+      DB_USER: jinodo
       DB_PASSWORD: ${DB_PASSWORD:-password}
       REDIS_HOST: redis
       KAFKA_SERVERS: kafka:9092
       JWT_SECRET: ${JWT_SECRET}
-      PULSESTACK_INGEST_SECRET: ${PULSESTACK_INGEST_SECRET}
+      JINODO_INGEST_SECRET: ${JINODO_INGEST_SECRET}
       REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
       REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
@@ -148,16 +148,16 @@ services:
 
   processing-service:
     build:
-      context: ./backend/pulsestack
+      context: ./backend/jinodo
       dockerfile: processing-service/Dockerfile
-    container_name: pulsestack-processing
+    container_name: jinodo-processing
     ports:
       - "8083:8083"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: pulsestack
-      DB_USER: pulsestack
+      DB_NAME: jinodo
+      DB_USER: jinodo
       DB_PASSWORD: ${DB_PASSWORD:-password}
       KAFKA_SERVERS: kafka:9092
       JWT_SECRET: ${JWT_SECRET}
@@ -170,16 +170,16 @@ services:
 
   chat-service:
     build:
-      context: ./backend/pulsestack
+      context: ./backend/jinodo
       dockerfile: chat-service/Dockerfile
-    container_name: pulsestack-chat
+    container_name: jinodo-chat
     ports:
       - "8082:8082"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: pulsestack
-      DB_USER: pulsestack
+      DB_NAME: jinodo
+      DB_USER: jinodo
       DB_PASSWORD: ${DB_PASSWORD:-password}
       REDIS_HOST: redis
       JWT_SECRET: ${JWT_SECRET}
@@ -201,16 +201,16 @@ services:
     environment:
       SERVER_PORT: 8080
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/stock_predictor
-      SPRING_DATASOURCE_USERNAME: pulsestack
+      SPRING_DATASOURCE_USERNAME: jinodo
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-password}
       POLYGON_API_KEY: ${POLYGON_API_KEY:-}
-      # Gleicher Secret wie PulseStack auth-service → Token funktioniert in beiden Apps
+      # Gleicher Secret wie Jinodo auth-service → Token funktioniert in beiden Apps
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRY_MS: 86400000
       FRONTEND_URL: http://localhost:5173
-      # PulseStack Integration — immer aktiv in dieser Umgebung
-      PULSESTACK_INGEST_URL: http://ingestion-service:8081
-      PULSESTACK_INGEST_SECRET: ${PULSESTACK_INGEST_SECRET}
+      # Jinodo Integration — immer aktiv in dieser Umgebung
+      JINODO_INGEST_URL: http://ingestion-service:8081
+      JINODO_INGEST_SECRET: ${JINODO_INGEST_SECRET}
       PREDICTOR_BASE_URL: http://localhost:8085
     depends_on:
       postgres:

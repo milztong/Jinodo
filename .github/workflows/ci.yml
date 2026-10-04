@@ -23,24 +23,24 @@ jobs:
           cache: maven
 
       - name: Run tests with JaCoCo
-        working-directory: backend/pulsestack
+        working-directory: backend/jinodo
         run: mvn -B verify --no-transfer-progress
         env:
-          PULSESTACK_JWT_SECRET: test-secret-key-must-be-at-least-32-chars
-          PULSESTACK_JWT_EXPIRATION_MS: 3600000
+          JWT_SECRET: test-secret-key-must-be-at-least-32-chars
+          JWT_EXPIRATION_MS: 3600000
 
       - name: Upload JaCoCo reports
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-reports
           path: |
-            backend/pulsestack/*/target/site/jacoco/
+            backend/jinodo/*/target/site/jacoco/
           retention-days: 14
 
       - name: Coverage summary (ingestion-service)
         uses: madrapps/jacoco-report@v1.6.1
         with:
-          paths: backend/pulsestack/ingestion-service/target/site/jacoco/jacoco.xml
+          paths: backend/jinodo/ingestion-service/target/site/jacoco/jacoco.xml
           token: ${{ secrets.GITHUB_TOKEN }}
           min-coverage-overall: 40
           min-coverage-changed-files: 50
@@ -57,13 +57,13 @@ jobs:
       # ein fehlendes Secret wird uebersprungen, ein fehlschlagender Hook (z. B.
       # suspendierter Render-Service) wird als Warnung im Step-Log sichtbar,
       # blockiert aber die uebrigen Services nicht.
-      - name: Deploy unified PulseStack service
+      - name: Deploy unified Jinodo service
         continue-on-error: true
         env:
-          HOOK: ${{ secrets.RENDER_DEPLOY_PULSESTACK }}
+          HOOK: ${{ secrets.RENDER_DEPLOY_JINODO }}
         run: |
           if [ -z "$HOOK" ]; then
-            echo "::notice::RENDER_DEPLOY_PULSESTACK not set — using legacy deploy hooks."
+            echo "::notice::RENDER_DEPLOY_JINODO not set — using legacy deploy hooks."
             exit 0
           fi
           curl -sS --fail-with-body --max-time 60 "$HOOK"
@@ -72,7 +72,7 @@ jobs:
         continue-on-error: true
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_AUTH }}
-          UNIFIED_HOOK: ${{ secrets.RENDER_DEPLOY_PULSESTACK }}
+          UNIFIED_HOOK: ${{ secrets.RENDER_DEPLOY_JINODO }}
         run: |
           if [ -n "$UNIFIED_HOOK" ]; then
             echo "::notice::Unified deploy hook configured — skipping legacy auth-service."
@@ -88,7 +88,7 @@ jobs:
         continue-on-error: true
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_INGESTION }}
-          UNIFIED_HOOK: ${{ secrets.RENDER_DEPLOY_PULSESTACK }}
+          UNIFIED_HOOK: ${{ secrets.RENDER_DEPLOY_JINODO }}
         run: |
           if [ -n "$UNIFIED_HOOK" ]; then
             echo "::notice::Unified deploy hook configured — skipping legacy ingestion-service."
@@ -104,7 +104,7 @@ jobs:
         continue-on-error: true
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_PROCESSING }}
-          UNIFIED_HOOK: ${{ secrets.RENDER_DEPLOY_PULSESTACK }}
+          UNIFIED_HOOK: ${{ secrets.RENDER_DEPLOY_JINODO }}
         run: |
           if [ -n "$UNIFIED_HOOK" ]; then
             echo "::notice::Unified deploy hook configured — skipping legacy processing-service."
@@ -120,7 +120,7 @@ jobs:
         continue-on-error: true
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_CHAT }}
-          UNIFIED_HOOK: ${{ secrets.RENDER_DEPLOY_PULSESTACK }}
+          UNIFIED_HOOK: ${{ secrets.RENDER_DEPLOY_JINODO }}
         run: |
           if [ -n "$UNIFIED_HOOK" ]; then
             echo "::notice::Unified deploy hook configured — skipping legacy chat-service."
